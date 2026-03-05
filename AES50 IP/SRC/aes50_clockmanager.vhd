@@ -22,6 +22,30 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <https://www.gnu.org/licenses/>.
+-- ===========================================================================-- ===========================================================================
+-- Project      : AES50 VHDL IP-CORE
+-- File         : <aes50_clockmanager.vhd>
+-- Author       : Markus Noll (YetAnotherElectronicsChannel)
+-- Created      : <2025-02-26>
+--
+-- Description  : Manages all clocking related stuff of the aes50
+--
+-- License      : GNU General Public License v3.0 or later (GPL-3.0-or-later)
+--
+-- This file is part of the AES50 VHDL IP-CORE.
+--
+-- The AES50 VHDL IP-CORE is free software: you can redistribute it and/or
+-- modify it under the terms of the GNU General Public License as published
+-- by the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+--
+-- The AES50 VHDL IP-CORE is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 -- ===========================================================================
 
 library IEEE;
@@ -153,7 +177,6 @@ architecture rtl of aes50_clockmanager is
 	
 	
 	--Variables and counters for PLL-clock process
-	signal rst_audioclk_z, rst_audioclk_zz			: std_logic;
 	
 	--aes-clk generator counter
 	signal clk_counter								: std_logic_vector (3 downto 0) := "0000";
@@ -348,33 +371,20 @@ end if;
 end process;
 
 
---FIX: Feb 25th 2026
---process clocked by 1024x fs audio-clock rewritten to use sync instead of async reset.
 
-process (clk_1024xfs_from_pll_i)
+process (clk_1024xfs_from_pll_i, rst_i)
 begin
 
+if rst_i='1' then
 
-if (rising_edge(clk_1024xfs_from_pll_i)) then
-
-	if (rst_i='1' or pll_lock_n_i = '1') then
-		rst_audioclk_z <= '1';
-	else 
-		rst_audioclk_z <= '0';
-	end if;
+	clk_counter <= "0000";
+	aes_sync_counter <= 2;
+	assm_self_latch <= '0';
+	assm_self_do <= 0;
+	assm_self_out_signal_counter <= 0;
+	wclk_to_aes_count_sync <= 1023;
 	
-	rst_audioclk_zz <= rst_audioclk_z;
-
-	if rst_audioclk_zz = '1' then
-
-		clk_counter <= "0000";
-		aes_sync_counter <= 2;
-		assm_self_latch <= '0';
-		assm_self_do <= 0;
-		assm_self_out_signal_counter <= 0;
-		wclk_to_aes_count_sync <= 1023;
-	
-	else
+elsif (rising_edge(clk_1024xfs_from_pll_i)) then
 
 	
 		aes_clk_in_edge_PLL <= aes_clk_in_edge_PLL(1 downto 0)&aes_clk_in;
@@ -406,165 +416,165 @@ if (rising_edge(clk_1024xfs_from_pll_i)) then
 	
 
 	
-		--running continously..
+	--running continously..
 
-		clk_counter <= std_logic_vector( unsigned(clk_counter) + to_unsigned(1,4) );
+	clk_counter <= std_logic_vector( unsigned(clk_counter) + to_unsigned(1,4) );
 	
 
 	
-		--this aes-sync counter is only needed in case of fs_mode_i 01
-		if (clk_counter = "1111") then
+	--this aes-sync counter is only needed in case of fs_mode_i 01
+	if (clk_counter = "1111") then
+	
+		if (tdm8_i2s_mode_i = '0') then
+			wclk_in_edge <= wclk_in_edge(1 downto 0)&wclk_readback_i;	
+		else
+			--in i2s mode, we need to negate the wclk_readback as left-sample in i2s starts with wclk=low, instead of high-pulse in tdm8
+			wclk_in_edge <= wclk_in_edge(1 downto 0)&(not wclk_readback_i);	
+		end if;
 		
-			if (tdm8_i2s_mode_i = '0') then
-				wclk_in_edge <= wclk_in_edge(1 downto 0)&wclk_readback_i;	
-			else
-				--in i2s mode, we need to negate the wclk_readback as left-sample in i2s starts with wclk=low, instead of high-pulse in tdm8
-				wclk_in_edge <= wclk_in_edge(1 downto 0)&(not wclk_readback_i);	
-			end if;
+		--sync one time after reset
+		if (sys_mode_i = "10" and wclk_to_aes_count_sync > 0 and wclk_in_edge(2 downto 1) = "01") then
+			aes_sync_counter <= 0;
+			wclk_to_aes_count_sync <= wclk_to_aes_count_sync - 1;
 			
-			--sync one time after reset
-			if (sys_mode_i = "10" and wclk_to_aes_count_sync > 0 and wclk_in_edge(2 downto 1) = "01") then
+		else
+			if (aes_sync_counter < 131071) then
+				aes_sync_counter <= aes_sync_counter + 1;
+			else
 				aes_sync_counter <= 0;
-				wclk_to_aes_count_sync <= wclk_to_aes_count_sync - 1;
-				
-			else
-				if (aes_sync_counter < 131071) then
-					aes_sync_counter <= aes_sync_counter + 1;
-				else
-					aes_sync_counter <= 0;
-				end if; 
+			end if; 
 
-				
-			end if;
-		end if;
-	
-	
-
-		--aes clock output generator with assm markers	
-
-		--this is the start condition for initiating the assm sync-marker
-		if ( ( (sys_mode_i="01") or (sys_mode_i="10" and wclk_to_aes_count_sync=0)) and aes_sync_counter=0 and clk_counter="0000") then
-			assm_self_out_signal_counter <= 10;
-		   
-		else
-			if (assm_self_out_signal_counter > 0) then
-				assm_self_out_signal_counter <= assm_self_out_signal_counter - 1;
-				assm_self_generated_o <= '1';
-				assm_self_latch <= '1';
-			else
-				assm_self_generated_o <= '0';
-				
-				if (assm_self_do = 2 and assm_self_latch = '1' and clk_counter = "1111" ) then
-					assm_self_latch <= '0';
-				end if;
-				
-			end if;
-			
-		end if; 	
-	
-		--this generates the actual clock
-		if    (clk_counter="0000" and assm_self_latch = '1' and assm_self_do = 0) then
-			assm_self_do <= 1;
-		elsif (clk_counter="0000" and assm_self_latch = '1' and assm_self_do = 1) then
-			assm_self_do <= 2;
-		elsif (clk_counter = "1111" and assm_self_do=2) then
-			assm_self_do <= 0;
-		end if;
-	
-		--do short pulse
-		if (assm_self_do = 1) then
-			if (unsigned(clk_counter) < to_unsigned(6,4) ) then
-				aes_clk_out_gen <= '1';
-			else
-				aes_clk_out_gen <= '0';
-			end if;
-		--do long pulse	
-		elsif (assm_self_do = 2) then
-			if (unsigned(clk_counter) < to_unsigned(10,4) ) then
-				aes_clk_out_gen <= '1';
-			else
-				aes_clk_out_gen <= '0';
-			end if;
-			
-		--do normal pulse
-		else
-			if (unsigned(clk_counter) < to_unsigned(8,4) ) then
-				aes_clk_out_gen <= '1';
-			else
-				aes_clk_out_gen <= '0';
-			end if;
-		end if;
-	
-	
-	
-
-		--this counter always runs, because it's not only the TDM8-BCLK, but also the MCLK which is probably needed for external I2S devices.
-		if (tdm8_bclk_mclk_counter <3 ) then
-			tdm8_bclk_mclk_counter <= tdm8_bclk_mclk_counter + 1;
-		else
-			tdm8_bclk_mclk_counter <= 0;
-		end if;
-		if (tdm8_bclk_mclk_counter < 2) then				
-			mclk_o <= '1';
-		else				
-			mclk_o <= '0';
-		end if;
-		
-		
-		if (tdm8_i2s_mode_i = '0') then	
-		
-			--Clock Generator for TDM8 Mode	
-			
-			if (tdm8_wclk_counter < 1023) then
-				tdm8_wclk_counter <= tdm8_wclk_counter + 1;
-			else
-				tdm8_wclk_counter <= 0;
-			end if;
-			
-			if (tdm8_wclk_counter < 32) then				
-				wclk_o <= '1';
-			else				
-				wclk_o <= '0';
-			end if;
-			
-			if (tdm8_bclk_mclk_counter < 2) then				
-				bclk_o <= '1';
-			else				
-				bclk_o <= '0';
-			end if;
-		
-		else
-		
-			--Clock Generator for I2S Mode
-			
-			if (i2s_bclk_counter <15 ) then
-				i2s_bclk_counter <= i2s_bclk_counter + 1;
-			else
-				i2s_bclk_counter <= 0;
-			end if;
-			
-			if (i2s_wclk_counter < 1023) then
-				i2s_wclk_counter <= i2s_wclk_counter + 1;
-			else
-				i2s_wclk_counter <= 0;
-			end if;
-			
-			if (i2s_wclk_counter < 512) then				
-				wclk_o <= '0';
-			else				
-				wclk_o <= '1';
-			end if;
-			
-			if (i2s_bclk_counter < 8) then				
-				bclk_o <= '1';
-			else				
-				bclk_o <= '0';
-			end if;
 			
 		end if;
-	
-	
 	end if;
+	
+	
+
+	--aes clock output generator with assm markers	
+
+	--this is the start condition for initiating the assm sync-marker
+	if ( ( (sys_mode_i="01") or (sys_mode_i="10" and wclk_to_aes_count_sync=0)) and aes_sync_counter=0 and clk_counter="0000") then
+		assm_self_out_signal_counter <= 10;
+	   
+    else
+		if (assm_self_out_signal_counter > 0) then
+			assm_self_out_signal_counter <= assm_self_out_signal_counter - 1;
+			assm_self_generated_o <= '1';
+			assm_self_latch <= '1';
+		else
+			assm_self_generated_o <= '0';
+			
+			if (assm_self_do = 2 and assm_self_latch = '1' and clk_counter = "1111" ) then
+				assm_self_latch <= '0';
+			end if;
+			
+		end if;
+		
+    end if; 	
+	
+	--this generates the actual clock
+	if    (clk_counter="0000" and assm_self_latch = '1' and assm_self_do = 0) then
+		assm_self_do <= 1;
+	elsif (clk_counter="0000" and assm_self_latch = '1' and assm_self_do = 1) then
+		assm_self_do <= 2;
+	elsif (clk_counter = "1111" and assm_self_do=2) then
+		assm_self_do <= 0;
+	end if;
+	
+	--do short pulse
+	if (assm_self_do = 1) then
+		if (unsigned(clk_counter) < to_unsigned(6,4) ) then
+			aes_clk_out_gen <= '1';
+		else
+			aes_clk_out_gen <= '0';
+		end if;
+	--do long pulse	
+	elsif (assm_self_do = 2) then
+		if (unsigned(clk_counter) < to_unsigned(10,4) ) then
+			aes_clk_out_gen <= '1';
+		else
+			aes_clk_out_gen <= '0';
+		end if;
+		
+	--do normal pulse
+	else
+		if (unsigned(clk_counter) < to_unsigned(8,4) ) then
+			aes_clk_out_gen <= '1';
+		else
+			aes_clk_out_gen <= '0';
+		end if;
+	end if;
+	
+	
+	
+
+	--this counter always runs, because it's not only the TDM8-BCLK, but also the MCLK which is probably needed for external I2S devices.
+	if (tdm8_bclk_mclk_counter <3 ) then
+		tdm8_bclk_mclk_counter <= tdm8_bclk_mclk_counter + 1;
+	else
+		tdm8_bclk_mclk_counter <= 0;
+	end if;
+	if (tdm8_bclk_mclk_counter < 2) then				
+		mclk_o <= '1';
+	else				
+		mclk_o <= '0';
+	end if;
+		
+		
+	if (tdm8_i2s_mode_i = '0') then	
+	
+		--Clock Generator for TDM8 Mode	
+		
+		if (tdm8_wclk_counter < 1023) then
+			tdm8_wclk_counter <= tdm8_wclk_counter + 1;
+		else
+			tdm8_wclk_counter <= 0;
+		end if;
+		
+		if (tdm8_wclk_counter < 32) then				
+			wclk_o <= '1';
+		else				
+			wclk_o <= '0';
+		end if;
+		
+		if (tdm8_bclk_mclk_counter < 2) then				
+			bclk_o <= '1';
+		else				
+			bclk_o <= '0';
+		end if;
+	
+	else
+	
+		--Clock Generator for I2S Mode
+		
+		if (i2s_bclk_counter <15 ) then
+			i2s_bclk_counter <= i2s_bclk_counter + 1;
+		else
+			i2s_bclk_counter <= 0;
+		end if;
+		
+		if (i2s_wclk_counter < 1023) then
+			i2s_wclk_counter <= i2s_wclk_counter + 1;
+		else
+			i2s_wclk_counter <= 0;
+		end if;
+		
+		if (i2s_wclk_counter < 512) then				
+			wclk_o <= '0';
+		else				
+			wclk_o <= '1';
+		end if;
+		
+		if (i2s_bclk_counter < 8) then				
+			bclk_o <= '1';
+		else				
+			bclk_o <= '0';
+		end if;
+		
+	end if;
+	
+	
+
 
 	
 end if;

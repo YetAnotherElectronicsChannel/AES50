@@ -203,40 +203,7 @@ begin
 
 	process (tmp_aux_vector)
 	begin
-		tmp_aux_lc24 <= tmp_aux_vector (63) & 
-						tmp_aux_vector (61) & 
-						tmp_aux_vector (59) & 
-						tmp_aux_vector (57) & 
-						tmp_aux_vector (55) & 
-						tmp_aux_vector (53) & 
-						tmp_aux_vector (51) & 
-						tmp_aux_vector (49) & 
-						tmp_aux_vector (47) & 
-						tmp_aux_vector (45) & 
-						tmp_aux_vector (43) & 
-						tmp_aux_vector (41) & 
-						tmp_aux_vector (39) & 
-						tmp_aux_vector (37) & 
-						tmp_aux_vector (35) & 
-						tmp_aux_vector (33) & 
-						tmp_aux_vector (31) & 
-						tmp_aux_vector (29) & 
-						tmp_aux_vector (27) & 
-						tmp_aux_vector (25) & 
-						tmp_aux_vector (23) & 
-						tmp_aux_vector (21) & 
-						tmp_aux_vector (19) & 
-						tmp_aux_vector (17) & 
-						tmp_aux_vector (15) & 
-						tmp_aux_vector (13) & 
-						tmp_aux_vector (11) & 
-						tmp_aux_vector (9)  & 
-						tmp_aux_vector (7)  & 
-						tmp_aux_vector (5)  & 
-						tmp_aux_vector (3)  & 
-						tmp_aux_vector (1)  ;
-		
-		tmp_aux_lc25 <= tmp_aux_vector (63-1) & 
+		tmp_aux_lc24 <= tmp_aux_vector (63-1) & 
 						tmp_aux_vector (61-1) & 
 						tmp_aux_vector (59-1) & 
 						tmp_aux_vector (57-1) & 
@@ -268,6 +235,39 @@ begin
 						tmp_aux_vector (5-1)  & 
 						tmp_aux_vector (3-1)  & 
 						tmp_aux_vector (1-1)  ;
+		
+		tmp_aux_lc25 <= tmp_aux_vector (63) & 
+						tmp_aux_vector (61) & 
+						tmp_aux_vector (59) & 
+						tmp_aux_vector (57) & 
+						tmp_aux_vector (55) & 
+						tmp_aux_vector (53) & 
+						tmp_aux_vector (51) & 
+						tmp_aux_vector (49) & 
+						tmp_aux_vector (47) & 
+						tmp_aux_vector (45) & 
+						tmp_aux_vector (43) & 
+						tmp_aux_vector (41) & 
+						tmp_aux_vector (39) & 
+						tmp_aux_vector (37) & 
+						tmp_aux_vector (35) & 
+						tmp_aux_vector (33) & 
+						tmp_aux_vector (31) & 
+						tmp_aux_vector (29) & 
+						tmp_aux_vector (27) & 
+						tmp_aux_vector (25) & 
+						tmp_aux_vector (23) & 
+						tmp_aux_vector (21) & 
+						tmp_aux_vector (19) & 
+						tmp_aux_vector (17) & 
+						tmp_aux_vector (15) & 
+						tmp_aux_vector (13) & 
+						tmp_aux_vector (11) & 
+						tmp_aux_vector (9)  & 
+						tmp_aux_vector (7)  & 
+						tmp_aux_vector (5)  & 
+						tmp_aux_vector (3)  & 
+						tmp_aux_vector (1)  ;	
 							
 	end process;
 

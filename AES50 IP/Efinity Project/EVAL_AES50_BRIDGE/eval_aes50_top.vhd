@@ -125,7 +125,7 @@ begin
 	
 	TDM_OUT <= tdm_int_o when (tdm8_i2s_mode = '0') else ("000000"&i2s_int_o);
 	
-	UART_OUT <= '1';
+	 
 	
 	--reset generator & system-cfg / fs-mode input latching
 	process (CLK_100M)
@@ -225,6 +225,8 @@ begin
 							
 			dbg_o									=> FPGA_DEBUG,
 			
+            uart_o                                  => UART_OUT,
+            
 			--variables for if coreclock = 100 MHz
 			debug_out_signal_pulse_len_i			=>	1000000,
 			first_transmit_start_counter_48k_i		=>	4249500,

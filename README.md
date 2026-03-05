@@ -77,7 +77,7 @@ Otherwise I might not answer to your request.
 | **i2s_o**                  | out      | `std_logic`                    | I2S Output (only needed in 2x2 mode)                             |
 | **aes_ok_o**               | out      | `std_logic`                    | AES50 Link Status  (high when connection established)         |
 | **dbg_o**                  | out      | `std_logic_vector(7 downto 0)` | Various internal debug signals                          |
-
+| **uart_o**               	| out      | `std_logic`                    | UART output (decoded bytes from the AES50 AUX-RX tunnel)     |
 ### Aux over TDM Feature
 AES50 provides (as part of the protocol) an auxiliary data channel with a fixed bandwidth of roughly 5 Mbit/s (the exact rate depends on the selected sample rate, as the auxiliary data stream is synchronous with the audio transmission).  
 According to the AES50 specification, there was a proposal (though not mandatory) to use standard Ethernet frames that could be tunneled through this auxiliary data channel - (ever wondered about the mysterious Ethernet port on the DN9630?) -> Therefore I assume that this proposed approach using virtual Ethernet frames is also used in other AES50 devices on the market.  
@@ -90,6 +90,12 @@ As a first reference for the datarate you can assume:
 - See further details in the TDM module implementation
 
 Anyhow - the IP core is prepared to be extended in terms of aux-data functionality (and its possibilities) later on. Therefore, the internal Data-FIFOs between TDM and the AES50 RX/TX Module are separated for Audio and Auxiliary-Data. 
+
+### Aux Data Receive (Update March 5th 2026)
+The IP can now decode the receiving side of the AES50 AUX data-tunnel and will send the data via UART to the outside word.  
+The actual protocol which is e.g. used for headamp control is still under investigation as the AES50 specification itself is only defining how the data-tunnel works.  
+See here an example print-out of a Wing-Rack connected.  
+![Example UART Printout](Doc/realterm_uart_aux_rx.png?raw=true "Aux Uart Printout")
 
 ### Audio Interface Timing
 

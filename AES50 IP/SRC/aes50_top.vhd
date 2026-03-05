@@ -101,6 +101,8 @@ port (
 		--debug signals
 		dbg_o								: out std_logic_vector(7 downto 0);
 		
+		--uart Signals
+		uart_o								: out std_logic;
 		
 		
 		--variables
@@ -180,6 +182,12 @@ architecture rtl of aes50_top is
 	signal	fifo_aes_to_tdm_aux_fifo_count 					: integer range 176 - 1 downto 0;	
 	signal  fifo_aes_to_tdm_misalign_panic					: std_logic := '0';
 	
+	--fifo signals from aes-rx to UART
+	signal fifo_aes_to_uart_aux_data						: std_logic_vector (15 downto 0);
+	signal fifo_aes_to_uart_aux_start_marker				: std_logic;
+	signal fifo_aes_to_uart_aux_rd_en						: std_logic;
+	signal fifo_aes_to_uart_aux_fifo_count					: integer range 176 - 1 downto 0;
+	
 	--fifo signals from tdm to aes-tx
 	signal 	fifo_tdm_to_aes_audio_data						: std_logic_vector (23 downto 0) := (others=>'0');
 	signal  fifo_tdm_to_aes_audio_ch0_marker				: std_logic := '0';
@@ -205,6 +213,19 @@ architecture rtl of aes50_top is
 	signal 	assm_rx_is_active_debug_out						: std_logic;	
 	signal 	assm_rx_is_active_debug_out_signal_counter		: integer range 1000000 downto 0;
 
+
+	--UART Signals
+	signal uart_tx_byte										: std_logic_vector(7 downto 0);
+	signal uart_tx_enable									: std_logic;
+	signal uart_tx_busy										: std_logic;
+	signal uart_tx_done										: std_logic;
+	signal aux_decoder_to_fifo_data							: std_logic_vector(7 downto 0);
+	signal aux_decoder_to_fifo_wr_en						: std_logic;
+	
+	signal fifo_to_uart_data								: std_logic_vector(7 downto 0);
+	signal fifo_to_uart_rd_en								: std_logic;
+	signal fifo_to_uart_count								: integer range 4095 downto 0;
+	signal fifo_uart_tx_state								: integer range 15 downto 0;
 
 	
 begin
@@ -563,7 +584,7 @@ begin
 			
 		);
 		
-	aes50rx: entity work.aes50_rx(rtl)
+    aes50rx: entity work.aes50_rx(rtl)
 		port map(
 			clk100_core_i 						=> clk100_i,
 			clk50_ethernet_i 					=> clk50_i,
@@ -577,12 +598,20 @@ begin
 		
 			audio_o								=> fifo_aes_to_tdm_audio_data,
 			audio_ch0_marker_o					=> fifo_aes_to_tdm_audio_ch0_marker,
-			aux_o								=> fifo_aes_to_tdm_aux_data,
+			
+			aux0_o								=> fifo_aes_to_tdm_aux_data,
+			aux0_start_marker_o					=> open,
+			
+			aux1_o								=> fifo_aes_to_uart_aux_data,
+			aux1_start_marker_o					=> fifo_aes_to_uart_aux_start_marker,
+			
 			audio_out_rd_en_i	 				=> fifo_aes_to_tdm_audio_rd_en,
-			aux_out_rd_en_i						=> fifo_aes_to_tdm_aux_rd_en,
+			aux0_out_rd_en_i					=> fifo_aes_to_tdm_aux_rd_en,
+			aux1_out_rd_en_i					=> fifo_aes_to_uart_aux_rd_en,
 			
 			fifo_fill_count_audio_o 			=> fifo_aes_to_tdm_audio_fifo_count,
-			fifo_fill_count_aux_o 				=> fifo_aes_to_tdm_aux_fifo_count,
+			fifo_fill_count_aux0_o 				=> fifo_aes_to_tdm_aux_fifo_count,
+			fifo_fill_count_aux1_o				=> fifo_aes_to_uart_aux_fifo_count,
 			
 			eth_rx_data_i    					=> phy_rx_data,
 			eth_rx_sof_i     					=> phy_rx_sof,   
@@ -594,5 +623,107 @@ begin
 			fifo_debug_o 						=> open
 			
 			);	
+			
+			
+			
+	aes50_uart_tx: entity work.aes50_uart_tx(rtl)
+		generic map (
+			g_CLKS_PER_BIT => 868     -- Needs to be set correctly
+		)
+		port map (
+			i_Clk       => clk100_i,
+			i_TX_DV     => uart_tx_enable,
+			i_TX_Byte   => uart_tx_byte,
+			o_TX_Active => uart_tx_busy,
+			o_TX_Serial => uart_o,
+			o_TX_Done   => uart_tx_done
+		);
+		
+	
+	
+	aes50_aux_decoder : entity work.aes50_aux_decoder(rtl)
+	
+	port map (
+		clk100_core_i    => clk100_i,
+        rst_i            => aes_rx_rst,              
+    
+        
+        aux_i                   	=> fifo_aes_to_uart_aux_data,
+		aux_data_start_marker_i 	=> fifo_aes_to_uart_aux_start_marker,
+        aux_in_rd_en_o          	=> fifo_aes_to_uart_aux_rd_en,
+        fifo_fill_count_aux_i   	=> fifo_aes_to_uart_aux_fifo_count,
+        
+        
+        
+        data_out_8bit           => aux_decoder_to_fifo_data,
+        data_out_valid          => aux_decoder_to_fifo_wr_en
+		
+	);
+		
+	aux_rx_uart_data_buffer : entity work.aes50_ring_buffer(rtl)
+	generic map (
+		RAM_WIDTH 		=> 8, 	
+		RAM_DEPTH 		=> 4096 		
+	)
+	port map (
+		clk_i 			=> clk100_i,
+		rst_i 			=> aes_rx_rst,
+		wr_en_i 		=> aux_decoder_to_fifo_wr_en,
+		wr_data_i 		=> aux_decoder_to_fifo_data,
+		rd_en_i 		=> fifo_to_uart_rd_en,
+		rd_valid_o 		=> open,
+		rd_data_o 		=> fifo_to_uart_data,
+		empty_o 		=> open,
+		empty_next_o 	=> open,
+		full_o 			=> open,
+		full_next_o 	=> open,
+		fill_count_o 	=> fifo_to_uart_count
+	);
+		
+	--controller for uart-tx control from aux-rx-decoder
+	process (clk100_i)
+	begin
+		if (rising_edge(clk100_i)) then 
+			if (aes_rx_rst = '1') then
+				uart_tx_enable <= '0';
+				uart_tx_byte <= (others=>'0');
+				
+				fifo_to_uart_rd_en <= '0';	
+				
+				fifo_uart_tx_state <= 0;
+				
+			else
+			
+				if (fifo_to_uart_count > 0 and uart_tx_busy = '0' and fifo_uart_tx_state=0) then
+					fifo_to_uart_rd_en <= '1';
+					fifo_uart_tx_state <= 1;		
+					
+				elsif (fifo_uart_tx_state = 1) then
+					fifo_to_uart_rd_en <= '0';
+					fifo_uart_tx_state <= 2;
+					
+				elsif (fifo_uart_tx_state = 2) then
+					uart_tx_byte <= fifo_to_uart_data;
+					uart_tx_enable <= '1';
+					fifo_uart_tx_state <= 3;
+					
+				elsif (fifo_uart_tx_state = 3) then
+					uart_tx_enable <= '0';
+					fifo_uart_tx_state <= 4;
+					
+				elsif (fifo_uart_tx_state = 4 and uart_tx_busy = '1') then
+				
+					fifo_uart_tx_state <= 5;					
+					
+				elsif (fifo_uart_tx_state = 5 and uart_tx_done='1') then
+					
+					fifo_uart_tx_state <= 0;
+				end if;
+				
+			end if;
+		end if;
+		
+	end process;
+		
 		
 end architecture;

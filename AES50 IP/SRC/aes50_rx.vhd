@@ -45,12 +45,20 @@ entity aes50_rx is
 				
 			audio_o						: out std_logic_vector (23 downto 0); 
 			audio_ch0_marker_o			: out std_logic;
-			aux_o						: out std_logic_vector (15 downto 0);
+			
+			aux0_o						: out std_logic_vector (15 downto 0);
+			aux0_start_marker_o			: out std_logic;
+
+			aux1_o						: out std_logic_vector (15 downto 0);
+			aux1_start_marker_o			: out std_logic;
+			
 			audio_out_rd_en_i			: in std_logic;
-			aux_out_rd_en_i				: in std_logic;
-								
+			aux0_out_rd_en_i			: in std_logic;
+			aux1_out_rd_en_i			: in std_logic;
+			
 			fifo_fill_count_audio_o 	: out integer range 1056 - 1 downto 0;
-			fifo_fill_count_aux_o 		: out integer range 176 - 1 downto 0;
+			fifo_fill_count_aux0_o 		: out integer range 176 - 1 downto 0;
+			fifo_fill_count_aux1_o 		: out integer range 176 - 1 downto 0;	
 			
 			eth_rx_data_i         		: in std_logic_vector(7 downto 0);
 			eth_rx_sof_i          		: in std_logic;
@@ -75,9 +83,10 @@ architecture rtl of aes50_rx is
 	signal  audio_fifo_out		: std_logic_vector(24 downto 0);
 	
 	--aux fifo
-	signal 	aux_fifo_in			: std_logic_vector (15 downto 0);	
+	signal 	aux_fifo_in			: std_logic_vector (16 downto 0);	
 	signal 	aux_fifo_in_wr_en	: std_logic;
-
+	signal 	aux0_fifo_out		: std_logic_vector(16 downto 0);
+	signal 	aux1_fifo_out		: std_logic_vector(16 downto 0);
 	
 	--RAM signals
 	
@@ -165,40 +174,48 @@ begin
 	audio_o <= audio_fifo_out(24 downto 1);
 	audio_ch0_marker_o <= audio_fifo_out(0);
 	
+	aux0_o <= aux0_fifo_out(16 downto 1);
+	aux0_start_marker_o <= aux0_fifo_out(0);
+	aux1_o <= aux1_fifo_out(16 downto 1);
+	aux1_start_marker_o <= aux1_fifo_out(0);
+
+	
+	
+	
 	process (tmp_aux_lc24, tmp_aux_lc25)
 	begin
-		tmp_aux_vector <=   tmp_aux_lc24(31) & tmp_aux_lc25(31) &
-							tmp_aux_lc24(30) & tmp_aux_lc25(30) &
-							tmp_aux_lc24(29) & tmp_aux_lc25(29) &
-							tmp_aux_lc24(28) & tmp_aux_lc25(28) &
-							tmp_aux_lc24(27) & tmp_aux_lc25(27) &
-							tmp_aux_lc24(26) & tmp_aux_lc25(26) &
-							tmp_aux_lc24(25) & tmp_aux_lc25(25) &
-							tmp_aux_lc24(24) & tmp_aux_lc25(24) &
-							tmp_aux_lc24(23) & tmp_aux_lc25(23) &
-							tmp_aux_lc24(22) & tmp_aux_lc25(22) &
-							tmp_aux_lc24(21) & tmp_aux_lc25(21) &
-							tmp_aux_lc24(20) & tmp_aux_lc25(20) &
-							tmp_aux_lc24(19) & tmp_aux_lc25(19) &
-							tmp_aux_lc24(18) & tmp_aux_lc25(18) &
-							tmp_aux_lc24(17) & tmp_aux_lc25(17) &
-							tmp_aux_lc24(16) & tmp_aux_lc25(16) &
-							tmp_aux_lc24(15) & tmp_aux_lc25(15) &
-							tmp_aux_lc24(14) & tmp_aux_lc25(14) &
-							tmp_aux_lc24(13) & tmp_aux_lc25(13) &
-							tmp_aux_lc24(12) & tmp_aux_lc25(12) &
-							tmp_aux_lc24(11) & tmp_aux_lc25(11) &
-							tmp_aux_lc24(10) & tmp_aux_lc25(10) &
-							tmp_aux_lc24(9) & tmp_aux_lc25(9) &
-							tmp_aux_lc24(8) & tmp_aux_lc25(8) &
-							tmp_aux_lc24(7) & tmp_aux_lc25(7) &
-							tmp_aux_lc24(6) & tmp_aux_lc25(6) &
-							tmp_aux_lc24(5) & tmp_aux_lc25(5) &
-							tmp_aux_lc24(4) & tmp_aux_lc25(4) &
-							tmp_aux_lc24(3) & tmp_aux_lc25(3) &
-							tmp_aux_lc24(2) & tmp_aux_lc25(2) &
-							tmp_aux_lc24(1) & tmp_aux_lc25(1) &
-							tmp_aux_lc24(0) & tmp_aux_lc25(0);
+		tmp_aux_vector <=   tmp_aux_lc25(31) & tmp_aux_lc24(31) &
+							tmp_aux_lc25(30) & tmp_aux_lc24(30) &
+							tmp_aux_lc25(29) & tmp_aux_lc24(29) &
+							tmp_aux_lc25(28) & tmp_aux_lc24(28) &
+							tmp_aux_lc25(27) & tmp_aux_lc24(27) &
+							tmp_aux_lc25(26) & tmp_aux_lc24(26) &
+							tmp_aux_lc25(25) & tmp_aux_lc24(25) &
+							tmp_aux_lc25(24) & tmp_aux_lc24(24) &
+							tmp_aux_lc25(23) & tmp_aux_lc24(23) &
+							tmp_aux_lc25(22) & tmp_aux_lc24(22) &
+							tmp_aux_lc25(21) & tmp_aux_lc24(21) &
+							tmp_aux_lc25(20) & tmp_aux_lc24(20) &
+							tmp_aux_lc25(19) & tmp_aux_lc24(19) &
+							tmp_aux_lc25(18) & tmp_aux_lc24(18) &
+							tmp_aux_lc25(17) & tmp_aux_lc24(17) &
+							tmp_aux_lc25(16) & tmp_aux_lc24(16) &
+							tmp_aux_lc25(15) & tmp_aux_lc24(15) &
+							tmp_aux_lc25(14) & tmp_aux_lc24(14) &
+							tmp_aux_lc25(13) & tmp_aux_lc24(13) &
+							tmp_aux_lc25(12) & tmp_aux_lc24(12) &
+							tmp_aux_lc25(11) & tmp_aux_lc24(11) &
+							tmp_aux_lc25(10) & tmp_aux_lc24(10) &
+							tmp_aux_lc25(9) & tmp_aux_lc24(9) &
+							tmp_aux_lc25(8) & tmp_aux_lc24(8) &
+							tmp_aux_lc25(7) & tmp_aux_lc24(7) &
+							tmp_aux_lc25(6) & tmp_aux_lc24(6) &
+							tmp_aux_lc25(5) & tmp_aux_lc24(5) &
+							tmp_aux_lc25(4) & tmp_aux_lc24(4) &
+							tmp_aux_lc25(3) & tmp_aux_lc24(3) &
+							tmp_aux_lc25(2) & tmp_aux_lc24(2) &
+							tmp_aux_lc25(1) & tmp_aux_lc24(1) &
+							tmp_aux_lc25(0) & tmp_aux_lc24(0);	
 
 	end process;
 
@@ -824,26 +841,30 @@ begin
 
 				--write first 16-bit word to fifo
 				elsif P2_State = AuxToFifo and P2_SubState = 5 then	
-					aux_fifo_in <= tmp_aux_vector(15 downto 0);
+					if (lc2_subframe_counter = 0 or lc2_subframe_counter = 11) then
+						aux_fifo_in <= tmp_aux_vector(15 downto 0) & "1";
+					else
+						aux_fifo_in <= tmp_aux_vector(15 downto 0) & "0";
+					end if;
 					aux_fifo_in_wr_en <= '1';
 					
 					P2_SubState <= 6;	
 
 				--write second 16-bit word to fifo					
 				elsif P2_State = AuxToFifo and P2_SubState = 6 then
-					aux_fifo_in <= tmp_aux_vector(31 downto 16);					
+					aux_fifo_in <= tmp_aux_vector(31 downto 16) & "0";					
 			
 					P2_SubState <= 7;
 				
 				--write third 16-bit word to fifo
 				elsif P2_State = AuxToFifo and P2_SubState = 7 then
-					aux_fifo_in <= tmp_aux_vector(47 downto 32);
+					aux_fifo_in <= tmp_aux_vector(47 downto 32) & "0";
 					
 					P2_SubState <= 8;
 					
 				--write fourth 16-bit word to fifo			
 				elsif P2_State = AuxToFifo and P2_SubState = 8 then
-					aux_fifo_in <= tmp_aux_vector(63 downto 48);
+					aux_fifo_in <= tmp_aux_vector(63 downto 48) & "0";
 					
 					P2_SubState <= 9;
 					
@@ -893,7 +914,7 @@ lc_ram : entity work.aes50_dual_port_bram (rtl)
 	
 audio_in_buffer : entity work.aes50_ring_buffer(rtl)
 	generic map (
-		RAM_WIDTH 		=> 25,		-- actually 24-bit sample + 1 bit CH0-indicator
+		RAM_WIDTH 		=> 24+1,	-- actually 24-bit sample + 1 bit CH0-indicator
 		RAM_DEPTH 		=> 1056		-- 2* blocks with 11*samples * 48 channels (considered worst case in 44k1 mode)
 	)
 	port map (
@@ -911,9 +932,9 @@ audio_in_buffer : entity work.aes50_ring_buffer(rtl)
 		fill_count_o 	=> fifo_fill_count_audio_o
 	);
 					
-aux_data_buffer : entity work.aes50_ring_buffer(rtl)
+aux0_data_buffer : entity work.aes50_ring_buffer(rtl)
 	generic map (
-		RAM_WIDTH 		=> 16,
+		RAM_WIDTH 		=> 16+1,	--actually 16-bit word + 1 bit start indicator (used for data-descrambler reset later)
 		RAM_DEPTH 		=> 176		-- 2* blocks with 88* aux-data-words (considered worst case in 44k1 mode)
 	)
 	port map (
@@ -921,17 +942,36 @@ aux_data_buffer : entity work.aes50_ring_buffer(rtl)
 		rst_i 			=> rst_i,
 		wr_en_i 		=> aux_fifo_in_wr_en,
 		wr_data_i 		=> aux_fifo_in,
-		rd_en_i 		=> aux_out_rd_en_i,
+		rd_en_i 		=> aux0_out_rd_en_i,
 		rd_valid_o 		=> open,
-		rd_data_o 		=> aux_o,
+		rd_data_o 		=> aux0_fifo_out,
 		empty_o 		=> fifo_debug_o(2),
 		empty_next_o 	=> open,
 		full_o 			=> fifo_debug_o(3),
 		full_next_o 	=> open,
-		fill_count_o 	=> fifo_fill_count_aux_o
+		fill_count_o 	=> fifo_fill_count_aux0_o
 	);
 					
-					
+aux1_data_buffer : entity work.aes50_ring_buffer(rtl)
+	generic map (
+		RAM_WIDTH 		=> 16+1,	--actually 16-bit word + 1 bit start indicator (used for data-descrambler reset later)
+		RAM_DEPTH 		=> 176		-- 2* blocks with 88* aux-data-words (considered worst case in 44k1 mode)
+	)
+	port map (
+		clk_i 			=> clk100_core_i,
+		rst_i 			=> rst_i,
+		wr_en_i 		=> aux_fifo_in_wr_en,
+		wr_data_i 		=> aux_fifo_in,
+		rd_en_i 		=> aux1_out_rd_en_i,
+		rd_valid_o 		=> open,
+		rd_data_o 		=> aux1_fifo_out,
+		empty_o 		=> open,
+		empty_next_o 	=> open,
+		full_o 			=> open,
+		full_next_o 	=> open,
+		fill_count_o 	=> fifo_fill_count_aux1_o
+	);
+								
 
 
 end architecture;
