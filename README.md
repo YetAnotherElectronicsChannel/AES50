@@ -92,7 +92,7 @@ As a first reference for the datarate you can assume:
 Anyhow - the IP core is prepared to be extended in terms of aux-data functionality (and its possibilities) later on. Therefore, the internal Data-FIFOs between TDM and the AES50 RX/TX Module are separated for Audio and Auxiliary-Data. 
 
 ### Aux Data Receive (Update March 5th 2026)
-The IP can now decode the receiving side of the AES50 AUX data-tunnel and will send the data via UART to the outside word.  
+The IP can now decode the receiving side of the AES50 AUX data-tunnel and will send the data via UART to the outside world.  
 The actual protocol which is e.g. used for headamp control is still under investigation as the AES50 specification itself is only defining how the data-tunnel works.  
 See here an example print-out of a Wing-Rack connected.  
 ![Example UART Printout](Doc/realterm_uart_aux_rx.png?raw=true "Aux Uart Printout")
