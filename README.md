@@ -117,6 +117,8 @@ The device identifies itself as an X32 Full-Size and the head amps can be contro
 The gain-ranges may be interpreted differently with different devices. You will find some info in the comments of the code-example.  
 This example is currently configured for controlling a Wing. Make sure that Remote-HA-Control over AES50 is enabled in the console settings.  
 
+See more information here: [Unofficial Protocol Description](Doc/Unofficial_AES50_AUX_Protocol_for_MusicGroup_Devices.pdf)  
+
 Special thanks to Christian Nöding for reverse-engineering the proprietary protocol and Thomas Zint (Behringer R&D) for helping with the checksum calculation.  
 
 Note: The transmission of channel-names does not work yet.
