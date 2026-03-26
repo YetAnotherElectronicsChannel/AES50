@@ -23,6 +23,27 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <https://www.gnu.org/licenses/>.
 -- ===========================================================================
+--
+-- Key design note - scrambler reset vs stuffing:
+--
+-- The AES50 spec mandates: data -> scramble -> stuff -> transmit
+-- Therefore the bit stream in pattern_detect contains scrambled data bits
+-- AND stuffed zeros interleaved. The pipeline delay of pattern_detect is
+-- exactly 10 raw bits (data + stuffed zeros mixed).
+--
+-- At bit_idx=10 of a start-marked word, payload_bit is always the first
+-- RAW bit of the new AES50 frame. But that first raw bit may itself be a
+-- stuffed zero (inserted by Behringer's encoder after scrambling). In that
+-- case the first actual scrambled data bit does not arrive until bit_idx=11
+-- (or later if more stuffed zeros follow).
+--
+-- The descrambler reset and byte_bit_cnt reset must therefore fire on the
+-- first NON-STUFFED payload bit of the new frame, not at a fixed bit_idx=10.
+-- The frame_reset_pending flag implements this: it is set when bit_idx=10
+-- of a start-marked word (the earliest the first frame bit can arrive as
+-- payload_bit), and cleared on the first payload bit that is not dropped
+-- by the destuffer.
+-- ===========================================================================
 
 
 library ieee;
@@ -31,7 +52,7 @@ use ieee.numeric_std.all;
 
 entity aes50_aux_decoder is
     generic (
-        G_MSB_FIRST : boolean := false -- True: Bit 15 zuerst, False: Bit 0 zuerst
+        G_MSB_FIRST : boolean := false
     );
     port (
         clk100_core_i           : in  std_logic; 
@@ -49,67 +70,61 @@ end aes50_aux_decoder;
 
 architecture rtl of aes50_aux_decoder is
 
-   
-    
-    signal bit_idx           : integer range 0 to 15 := 0;
-    signal is_processing     : std_logic := '0';
-    signal fifo_wait_data    : integer range 0 to 3 := 0;
-    signal shift_reg_in      : std_logic_vector(15 downto 0);
-    signal current_start_mkr : std_logic := '0';    
-	signal first_valid_detect : std_logic := '0';    
-    signal descramble_reg    : std_logic_vector(8 downto 0) := (others => '0'); 
-    signal pattern_detect    : std_logic_vector(10 downto 0) := (others => '0');	
-    signal ones_cnt          : integer range 0 to 15 := 0;    
-    signal byte_shifter      : std_logic_vector(7 downto 0) := (others => '0');
-    signal byte_bit_cnt      : integer range 0 to 7 := 0;
-	signal flush_cnt : integer range 0 to 11 := 0;
+    signal bit_idx              : integer range 0 to 15 := 0;
+    signal is_processing        : std_logic := '0';
+    signal fifo_wait_data       : integer range 0 to 3 := 0;
+    signal shift_reg_in         : std_logic_vector(15 downto 0);
+    signal current_start_mkr    : std_logic := '0';    
+    signal first_valid_detect   : std_logic := '0';    
+    signal descramble_reg       : std_logic_vector(8 downto 0) := (others => '0'); 
+    signal pattern_detect       : std_logic_vector(10 downto 0) := (others => '0');	
+    signal ones_cnt             : integer range 0 to 15 := 0;    
+    signal byte_shifter         : std_logic_vector(7 downto 0) := (others => '0');
+    signal byte_bit_cnt         : integer range 0 to 7 := 0;
+    signal flush_cnt            : integer range 0 to 11 := 0;
+    signal frame_reset_pending  : std_logic := '0';
 	
+    signal data_out_8bit        : std_logic_vector(7 downto 0);
+    signal data_out_valid       : std_logic;
 	
-	signal data_out_8bit           : std_logic_vector(7 downto 0);
-    signal data_out_valid          : std_logic;
+    -- UART signals
+    signal uart_tx_byte         : std_logic_vector(7 downto 0);
+    signal uart_tx_enable       : std_logic;
+    signal uart_tx_busy         : std_logic;
+    signal uart_tx_done         : std_logic;
 	
-	
-	--UART Signals
-	signal uart_tx_byte										: std_logic_vector(7 downto 0);
-	signal uart_tx_enable									: std_logic;
-	signal uart_tx_busy										: std_logic;
-	signal uart_tx_done										: std_logic;
-	
-	signal fifo_to_uart_data								: std_logic_vector(7 downto 0);
-	signal fifo_to_uart_rd_en								: std_logic;
-	signal fifo_to_uart_count								: integer range 2047 downto 0;
-	signal fifo_uart_tx_state								: integer range 15 downto 0;
+    signal fifo_to_uart_data    : std_logic_vector(7 downto 0);
+    signal fifo_to_uart_rd_en   : std_logic;
+    signal fifo_to_uart_count   : integer range 2047 downto 0;
+    signal fifo_uart_tx_state   : integer range 15 downto 0;
 
 begin
 
-	
-	
     process(clk100_core_i)
-        variable descrambled_bit : std_logic;
-		variable payload_bit	 : std_logic;
-		variable pattern_detect_v : std_logic_vector(10 downto 0);  
-		variable current_bit      : std_logic;
+        variable descrambled_bit  : std_logic;
+        variable payload_bit      : std_logic;
+        variable pattern_detect_v : std_logic_vector(10 downto 0);  
+        variable current_bit      : std_logic;
     begin
 	
         if rising_edge(clk100_core_i) then
 		
             if rst_i = '1' then
-                
-                is_processing     <= '0';
-                fifo_wait_data    <= 0;
-                aux_in_rd_en_o    <= '0';
-                data_out_valid    <= '0';
-                descramble_reg    <= (others => '0');
-                pattern_detect    <= (others => '0'); 
-                ones_cnt          <= 0;
-                byte_bit_cnt      <= 0;
-				first_valid_detect <= '0';
+                is_processing       <= '0';
+                fifo_wait_data      <= 0;
+                aux_in_rd_en_o      <= '0';
+                data_out_valid      <= '0';
+                descramble_reg      <= (others => '0');
+                pattern_detect      <= (others => '0'); 
+                ones_cnt            <= 0;
+                byte_bit_cnt        <= 0;
+                first_valid_detect  <= '0';
+                frame_reset_pending <= '0';
 				
             else
                 data_out_valid  <= '0';
                 aux_in_rd_en_o  <= '0';
 				
-                
                 if is_processing = '0' and fifo_wait_data = 0 then
                     if fifo_fill_count_aux_i > 0 then
                         aux_in_rd_en_o <= '1';
@@ -127,180 +142,166 @@ begin
                     is_processing     <= '1';
                 end if;
 
+                if is_processing = '1' then
 
+                    if G_MSB_FIRST then
+                        current_bit := shift_reg_in(15 - bit_idx);
+                    else
+                        current_bit := shift_reg_in(bit_idx);
+                    end if;
 
-				
+                    pattern_detect_v := pattern_detect(9 downto 0) & current_bit;
+                    pattern_detect   <= pattern_detect_v;
 
-				if is_processing = '1' then
-
-					if G_MSB_FIRST then
-						current_bit := shift_reg_in(15 - bit_idx);
-					else
-						current_bit := shift_reg_in(bit_idx);
-					end if;
-
-					pattern_detect_v   := pattern_detect(9 downto 0) & current_bit;
-					pattern_detect <= pattern_detect_v;
-
+                    if current_start_mkr = '1' and bit_idx = 10 then
+                        descramble_reg      <= "000000000";
+                        frame_reset_pending <= '1';
+                    end if;
 					
-					if current_start_mkr = '1' and bit_idx = 0 then
-						descramble_reg <= "000000000";
-						--ones_cnt       <= 0;
-						--byte_bit_cnt   <= 0;
-					end if;
+                    if pattern_detect_v = "01111111110" then
 					
-						
-					if pattern_detect_v = "01111111110" then
-											
-						flush_cnt    <= 10;
-						ones_cnt <= 0;
-						byte_bit_cnt <= 0;
-						first_valid_detect <= '1';
+                        flush_cnt           <= 10;
+                        ones_cnt            <= 0;
+                        byte_bit_cnt        <= 0;
+                        first_valid_detect  <= '1';
+                        frame_reset_pending <= '0';
 
-					elsif flush_cnt > 0 then
-						flush_cnt <= flush_cnt - 1;
-						if (flush_cnt = 1) then
-							byte_bit_cnt   <= 0;
-							ones_cnt <= 0;
-						end if;
+                    elsif flush_cnt > 0 then
+                        flush_cnt <= flush_cnt - 1;
+                        if flush_cnt = 1 then
+                            byte_bit_cnt <= 0;
+                            ones_cnt     <= 0;
+                        end if;
 
-					else
-						payload_bit := pattern_detect_v(10);
+                    else
+                        payload_bit := pattern_detect_v(10);
 
-						
-						if ones_cnt = 8 and payload_bit = '0' then
-							ones_cnt <= 0;
+                        if ones_cnt = 8 and payload_bit = '0' then
+                            ones_cnt <= 0;
 							
-						else
-							--descrambled_bit := payload_bit;
-							-- Descrambler
-							if current_start_mkr = '1' and bit_idx = 0 then
-								descrambled_bit := payload_bit;
-								descramble_reg  <= "00000000" & descrambled_bit;
-							else
-								descrambled_bit := payload_bit
-												   xor descramble_reg(4)
-												   xor descramble_reg(8);
-								--descramble_reg  <= descramble_reg(7 downto 0)  & descrambled_bit;
-								descramble_reg  <= descramble_reg(7 downto 0)  & payload_bit;
-							end if;
-
-							if payload_bit = '1' and ones_cnt < 8 then
-								ones_cnt <= ones_cnt + 1;
-							else
-								ones_cnt <= 0;
-							end if;
-
-							-- Byte assembler
-							byte_shifter <= byte_shifter(6 downto 0) & descrambled_bit;
-							if byte_bit_cnt = 7 then
-															
-								data_out_8bit <= descrambled_bit & byte_shifter(0) & byte_shifter(1) & byte_shifter(2) & byte_shifter(3) & byte_shifter(4) & byte_shifter(5) & byte_shifter(6);
-																
-								if (first_valid_detect='1') then 
-									data_out_valid <= '1';
-								end if;
-								byte_bit_cnt   <= 0;
-							else
-								byte_bit_cnt <= byte_bit_cnt + 1;
-							end if;
-
-						end if; 
-					end if; 
+                        else
+                            
+                            if frame_reset_pending = '1' then
+                                ones_cnt            <= 0;
+                                byte_bit_cnt        <= 0;
+                                frame_reset_pending <= '0';
+                            end if;
+                            
+                            descrambled_bit := payload_bit
+                                               xor descramble_reg(4)
+                                               xor descramble_reg(8);
+                            descramble_reg  <= descramble_reg(7 downto 0) & payload_bit;
 							
 
-					if bit_idx = 15 then
-						is_processing <= '0';
-					else
-						bit_idx <= bit_idx + 1;
-					end if;
+                            if payload_bit = '1' and ones_cnt < 8 then
+                                ones_cnt <= ones_cnt + 1;
+                            else
+                                ones_cnt <= 0;
+                            end if;
 
-				end if; 
-				
+                            -- Byte assembler
+                            byte_shifter <= byte_shifter(6 downto 0) & descrambled_bit;
+                            if byte_bit_cnt = 7 then
+                                data_out_8bit <= descrambled_bit
+                                              & byte_shifter(0) & byte_shifter(1)
+                                              & byte_shifter(2) & byte_shifter(3)
+                                              & byte_shifter(4) & byte_shifter(5)
+                                              & byte_shifter(6);
+                                if first_valid_detect = '1' then 
+                                    data_out_valid <= '1';
+                                end if;
+                                byte_bit_cnt <= 0;
+                            else
+                                byte_bit_cnt <= byte_bit_cnt + 1;
+                            end if;
+
+                        end if; 
+                    end if; 
+
+                    if bit_idx = 15 then
+                        is_processing <= '0';
+                    else
+                        bit_idx <= bit_idx + 1;
+                    end if;
+
+                end if; 
 				
             end if;
         end if;
 		
-		
     end process;
 	
 	
-	
-	aes50_uart_tx: entity work.aes50_uart_tx(rtl)
-	port map (
-		i_Clk       		=> clk100_core_i,
-		i_TX_DV     		=> uart_tx_enable,
-		i_TX_Byte   		=> uart_tx_byte,
-		i_CLKS_PER_BIT 		=> uart_clks_per_bit_i,
-		o_TX_Active 		=> uart_tx_busy,
-		o_TX_Serial 		=> uart_o,
-		o_TX_Done   		=> uart_tx_done
-	);
+    aes50_uart_tx: entity work.aes50_uart_tx(rtl)
+    port map (
+        i_Clk          => clk100_core_i,
+        i_TX_DV        => uart_tx_enable,
+        i_TX_Byte      => uart_tx_byte,
+        i_CLKS_PER_BIT => uart_clks_per_bit_i,
+        o_TX_Active    => uart_tx_busy,
+        o_TX_Serial    => uart_o,
+        o_TX_Done      => uart_tx_done
+    );
 		
-	
-	uart_tx_data_buffer : entity work.aes50_ring_buffer(rtl)
-	generic map (
-		RAM_WIDTH 		=> 8, 	
-		RAM_DEPTH 		=> 2048 		
-	)
-	port map (
-		clk_i 			=> clk100_core_i,
-		rst_i 			=> rst_i,
-		wr_en_i 		=> data_out_valid,
-		wr_data_i 		=> data_out_8bit,
-		rd_en_i 		=> fifo_to_uart_rd_en,
-		rd_valid_o 		=> open,
-		rd_data_o 		=> fifo_to_uart_data,
-		empty_o 		=> open,
-		empty_next_o 	=> open,
-		full_o 			=> open,
-		full_next_o 	=> open,
-		fill_count_o 	=> fifo_to_uart_count
-	);
+    uart_tx_data_buffer : entity work.aes50_ring_buffer(rtl)
+    generic map (
+        RAM_WIDTH => 8, 	
+        RAM_DEPTH => 2048 		
+    )
+    port map (
+        clk_i        => clk100_core_i,
+        rst_i        => rst_i,
+        wr_en_i      => data_out_valid,
+        wr_data_i    => data_out_8bit,
+        rd_en_i      => fifo_to_uart_rd_en,
+        rd_valid_o   => open,
+        rd_data_o    => fifo_to_uart_data,
+        empty_o      => open,
+        empty_next_o => open,
+        full_o       => open,
+        full_next_o  => open,
+        fill_count_o => fifo_to_uart_count
+    );
 		
-	--controller for uart-tx control from aux-rx-decoder
-	process (clk100_core_i)
-	begin
-		if (rising_edge(clk100_core_i)) then 
-			if (rst_i = '1') then
-				uart_tx_enable <= '0';
-				uart_tx_byte <= (others=>'0');
+    -- UART TX controller
+    process (clk100_core_i)
+    begin
+        if rising_edge(clk100_core_i) then 
+            if rst_i = '1' then
+                uart_tx_enable     <= '0';
+                uart_tx_byte       <= (others => '0');
+                fifo_to_uart_rd_en <= '0';	
+                fifo_uart_tx_state <= 0;
 				
-				fifo_to_uart_rd_en <= '0';	
-				
-				fifo_uart_tx_state <= 0;
-				
-			else
+            else
 			
-				if (fifo_to_uart_count > 0 and uart_tx_busy = '0' and fifo_uart_tx_state=0) then
-					fifo_to_uart_rd_en <= '1';
-					fifo_uart_tx_state <= 1;		
+                if fifo_to_uart_count > 0 and uart_tx_busy = '0' and fifo_uart_tx_state = 0 then
+                    fifo_to_uart_rd_en <= '1';
+                    fifo_uart_tx_state <= 1;
 					
-				elsif (fifo_uart_tx_state = 1) then
-					fifo_to_uart_rd_en <= '0';
-					fifo_uart_tx_state <= 2;
+                elsif fifo_uart_tx_state = 1 then
+                    fifo_to_uart_rd_en <= '0';
+                    fifo_uart_tx_state <= 2;
 					
-				elsif (fifo_uart_tx_state = 2) then
-					uart_tx_byte <= fifo_to_uart_data;
-					uart_tx_enable <= '1';
-					fifo_uart_tx_state <= 3;
+                elsif fifo_uart_tx_state = 2 then
+                    uart_tx_byte       <= fifo_to_uart_data;
+                    uart_tx_enable     <= '1';
+                    fifo_uart_tx_state <= 3;
 					
-				elsif (fifo_uart_tx_state = 3) then
-					uart_tx_enable <= '0';
-					fifo_uart_tx_state <= 4;
+                elsif fifo_uart_tx_state = 3 then
+                    uart_tx_enable     <= '0';
+                    fifo_uart_tx_state <= 4;
 					
-				elsif (fifo_uart_tx_state = 4 and uart_tx_busy = '1') then
+                elsif fifo_uart_tx_state = 4 and uart_tx_busy = '1' then
+                    fifo_uart_tx_state <= 5;
+					
+                elsif fifo_uart_tx_state = 5 and uart_tx_done = '1' then
+                    fifo_uart_tx_state <= 0;
+                end if;
 				
-					fifo_uart_tx_state <= 5;					
-					
-				elsif (fifo_uart_tx_state = 5 and uart_tx_done='1') then
-					
-					fifo_uart_tx_state <= 0;
-				end if;
-				
-			end if;
-		end if;
+            end if;
+        end if;
 		
-	end process;
+    end process;
 
 end architecture;
