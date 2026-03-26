@@ -23,27 +23,6 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program. If not, see <https://www.gnu.org/licenses/>.
 -- ===========================================================================
---
--- Key design note - scrambler reset vs stuffing:
---
--- The AES50 spec mandates: data -> scramble -> stuff -> transmit
--- Therefore the bit stream in pattern_detect contains scrambled data bits
--- AND stuffed zeros interleaved. The pipeline delay of pattern_detect is
--- exactly 10 raw bits (data + stuffed zeros mixed).
---
--- At bit_idx=10 of a start-marked word, payload_bit is always the first
--- RAW bit of the new AES50 frame. But that first raw bit may itself be a
--- stuffed zero (inserted by Behringer's encoder after scrambling). In that
--- case the first actual scrambled data bit does not arrive until bit_idx=11
--- (or later if more stuffed zeros follow).
---
--- The descrambler reset and byte_bit_cnt reset must therefore fire on the
--- first NON-STUFFED payload bit of the new frame, not at a fixed bit_idx=10.
--- The frame_reset_pending flag implements this: it is set when bit_idx=10
--- of a start-marked word (the earliest the first frame bit can arrive as
--- payload_bit), and cleared on the first payload bit that is not dropped
--- by the destuffer.
--- ===========================================================================
 
 
 library ieee;

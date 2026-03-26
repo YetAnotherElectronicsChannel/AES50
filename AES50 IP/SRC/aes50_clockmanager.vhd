@@ -225,7 +225,7 @@ if (rising_edge(clk100_i)) then
 
 	if (rst_i = '1') then
 		clk_625MHz_cnt <= 0;
-		
+		clk_625MHz 	<= '0';		
 		wd_aes_clk_a <= 0;
 		wd_aes_clk_b <= 0;
 		wd_aes_rx_dv_in <= 0;
@@ -245,8 +245,12 @@ if (rising_edge(clk100_i)) then
 
 	else
 		
-		--6.25MHz clock generator	
-		clk_625MHz_cnt <= clk_625MHz_cnt + 1;
+		--6.25MHz clock generator			
+		if clk_625MHz_cnt < 15 then
+			clk_625MHz_cnt <= clk_625MHz_cnt + 1;			
+		else
+			clk_625MHz_cnt <= 0;
+		end if;
 		
 		if (clk_625MHz_cnt < 8) then
 			clk_625MHz <= '1';
