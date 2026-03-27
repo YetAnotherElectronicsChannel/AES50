@@ -99,8 +99,7 @@ A similar concept appears to be implemented in the Appsys Multiverter, which tun
 - See further details in the TDM module implementation
 
 #### Aux Data over UART
-It is also possible to send and receive data over the aux-data-tunnel with a UART connection.    
-The actual protocol which is e.g. used for headamp control is still under investigation as the AES50 specification itself is only defining how the data-tunnel works.     
+It is also possible to send and receive data over the aux-data-tunnel with a UART connection.         
 See here an example print-out of a Wing-Rack connected.    
 ![Example UART Printout](Doc/realterm_uart_aux_rx.png?raw=true "Aux Uart Printout")
 
