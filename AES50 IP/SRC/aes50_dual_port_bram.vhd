@@ -40,7 +40,7 @@ entity aes50_dual_port_bram is
 end aes50_dual_port_bram;
 
 architecture rtl of aes50_dual_port_bram is
-	type ram_type is array (RAM_DEPTH downto 0) of std_logic_vector(RAM_WIDTH - 1 downto 0);
+	type ram_type is array (RAM_DEPTH - 1 downto 0) of std_logic_vector(RAM_WIDTH - 1 downto 0);
 	shared variable RAM : ram_type;
 	
 	begin

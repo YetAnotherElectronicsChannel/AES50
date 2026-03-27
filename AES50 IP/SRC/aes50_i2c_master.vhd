@@ -30,13 +30,13 @@
 --------------------------------------------------------------------------------
 
 LIBRARY ieee;
-USE ieee.std_logic_1164.all;
-USE ieee.std_logic_unsigned.all;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 entity aes50_i2c_master is
   generic(
-    input_clk 		: integer := 100_000_000; 				--input clock speed from user logic in Hz
-    bus_clk   		: integer := 100_000);   				--speed the i2c bus (scl) will run at in Hz
+    input_clk 		: natural := 100_000_000; 				--input clock speed from user logic in Hz
+    bus_clk   		: natural := 100_000);   				--speed the i2c bus (scl) will run at in Hz
   port(
     clk_i       	: in     std_logic;                    	--system clock
     rst_n_i   		: in     std_logic;                    	--active low reset
@@ -58,7 +58,7 @@ entity aes50_i2c_master is
 end aes50_i2c_master;
 
 architecture rtl of aes50_i2c_master is
-  CONSTANT divider  :  integer := (input_clk/bus_clk)/4; --number of clocks in 1/4 cycle of scl
+  CONSTANT divider  :  natural := (input_clk/bus_clk)/4; --number of clocks in 1/4 cycle of scl
   TYPE machine is(ready, start, command, slv_ack1, wr, rd, slv_ack2, mstr_ack, stop); --needed states
   signal state         : machine;                        --state machine
   signal data_clk      : std_logic;                      --data clock for sda
@@ -70,7 +70,7 @@ architecture rtl of aes50_i2c_master is
   signal addr_rw       : std_logic_vector(7 downto 0);   --latched in address and read/write
   signal data_tx       : std_logic_vector(7 downto 0);   --latched in data to write to slave
   signal data_rx       : std_logic_vector(7 downto 0);   --data received from slave
-  signal bit_cnt       : integer range 0 to 7 := 7;      --tracks bit number in transaction
+  signal bit_cnt       : natural range 0 to 7 := 7;      --tracks bit number in transaction
   signal stretch       : std_logic := '0';               --identifies if slave is stretching scl
   signal data_clk_m : std_logic;
   
@@ -79,7 +79,7 @@ begin
 
   --generate the timing for the bus clock (scl_clk) and the data clock (data_clk)
   process(clk_i, rst_n_i)
-    variable count  :  integer range 0 to divider*4;  --timing for clock generation
+    variable count  :  natural range 0 to divider*4;  --timing for clock generation
   begin
     if(rst_n_i = '0') then                --reset asserted
       stretch <= '0';

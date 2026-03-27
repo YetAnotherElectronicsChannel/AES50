@@ -26,7 +26,6 @@
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.std_logic_unsigned.all;
 use ieee.numeric_std.all;
 
 entity aes50_cs2x00_pll_controller is
@@ -52,7 +51,7 @@ architecture rtl of aes50_cs2x00_pll_controller is
 
 	signal ResetWaitCounter : natural range 0 to 16383:= 16383;
 
-	signal i2c_state : natural range 0 to 31 := 0;
+	signal i2c_state : natural range 0 to 7 := 0;
 	signal cs2000counter: natural range 0 to 15 := 0;
 
 	signal pll_mult : std_logic_vector (31 downto 0) := (others=>'0');

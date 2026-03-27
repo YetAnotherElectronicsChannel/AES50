@@ -42,7 +42,7 @@ entity aes50_ring_buffer is
     full_next_o 		: out std_logic;
 
     -- The number of elements in the FIFO
-    fill_count_o 		: out natural range RAM_DEPTH - 1 downto 0
+    fill_count_o 		: out natural range 0 to RAM_DEPTH - 1
   );
 end aes50_ring_buffer;
 

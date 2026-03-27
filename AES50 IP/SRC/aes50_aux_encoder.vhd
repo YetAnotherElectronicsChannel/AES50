@@ -38,7 +38,7 @@ entity aes50_aux_encoder is
         
         uart_i                  : in  std_logic;
         uart_clks_per_bit_i     : in  natural;
-        uart_timeout_clks_i     : in  integer;
+        uart_timeout_clks_i     : in  natural;
                        
         fs_mode_i               : in  std_logic_vector(1 downto 0); 
         aux_request_i           : in  std_logic; 

@@ -67,7 +67,7 @@ Otherwise I might not answer to your request.
 | **clk_1024xfs_from_pll_i** | in       | `std_logic`                    | Clock from external PLL (1024× fs)      |
 | **pll_lock_n_i**           | in       | `std_logic`                    | External PLL Lock Status (active low)   |
 | **clk_to_pll_o**           | out      | `std_logic`                    | Clock to external PLL                   |
-| **pll_mult_value_o**       | out      | `integer`                      | External PLL multiplication-factor      |
+| **pll_mult_value_o**       | out      | `natural`                      | External PLL multiplication-factor      |
 | **pll_init_busy_i**        | in       | `std_logic`                    | PLL init busy status                    |
 | **mclk_o**                 | out      | `std_logic`                    | Master Clock (256x fs) - derived (divided by x4) from PLL - independent of System-Mode Select |
 | **wclk_o**                 | out      | `std_logic`                    | Word Clock Output (if our IP is I2S/TDM Master)   |

@@ -42,7 +42,7 @@ entity aes50_aux_decoder is
         aux_in_rd_en_o          : out std_logic;
         fifo_fill_count_aux_i   : in  natural range 0 to 176 - 1;
         
-		uart_clks_per_bit_i		: in integer;
+		uart_clks_per_bit_i		: in natural;
         uart_o					: out std_logic
 	);
 end aes50_aux_decoder;
@@ -75,7 +75,7 @@ architecture rtl of aes50_aux_decoder is
     signal fifo_to_uart_data    : std_logic_vector(7 downto 0);
     signal fifo_to_uart_rd_en   : std_logic;
     signal fifo_to_uart_count   : natural range 0 to 2047;
-    signal fifo_uart_tx_state   : natural range 0 to 15;
+    signal fifo_uart_tx_state   : natural range 0 to 7;
 
 begin
 
@@ -255,30 +255,38 @@ begin
 				
             else
 			
-                if fifo_to_uart_count > 0 and uart_tx_busy = '0' and fifo_uart_tx_state = 0 then
-                    fifo_to_uart_rd_en <= '1';
-                    fifo_uart_tx_state <= 1;
+				case fifo_uart_tx_state is
+					when 0 =>
+						if fifo_to_uart_count > 0 and uart_tx_busy = '0' then
+							fifo_to_uart_rd_en <= '1';
+							fifo_uart_tx_state <= 1;
+						end if;
+						
+					when 1 =>
+						fifo_to_uart_rd_en <= '0';
+						fifo_uart_tx_state <= 2;
+						
+					when 2 =>
+						uart_tx_byte       <= fifo_to_uart_data;
+						uart_tx_enable     <= '1';
+						fifo_uart_tx_state <= 3;
+						
+					when 3 =>
+						uart_tx_enable     <= '0';
+						fifo_uart_tx_state <= 4;
 					
-                elsif fifo_uart_tx_state = 1 then
-                    fifo_to_uart_rd_en <= '0';
-                    fifo_uart_tx_state <= 2;
-					
-                elsif fifo_uart_tx_state = 2 then
-                    uart_tx_byte       <= fifo_to_uart_data;
-                    uart_tx_enable     <= '1';
-                    fifo_uart_tx_state <= 3;
-					
-                elsif fifo_uart_tx_state = 3 then
-                    uart_tx_enable     <= '0';
-                    fifo_uart_tx_state <= 4;
-					
-                elsif fifo_uart_tx_state = 4 and uart_tx_busy = '1' then
-                    fifo_uart_tx_state <= 5;
-					
-                elsif fifo_uart_tx_state = 5 and uart_tx_done = '1' then
-                    fifo_uart_tx_state <= 0;
-                end if;
-				
+					when 4 =>				
+						if uart_tx_busy = '1' then
+							fifo_uart_tx_state <= 5;
+						end if;
+						
+					when 5 =>			
+						if uart_tx_done = '1' then
+							fifo_uart_tx_state <= 0;
+						end if;
+						
+					when others => null;
+				end case;
             end if;
         end if;
 		

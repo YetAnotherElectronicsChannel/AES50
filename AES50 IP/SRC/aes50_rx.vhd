@@ -147,9 +147,9 @@ architecture rtl of aes50_rx is
     signal P2_State : t_State_p2;
 	signal P2_SubState						: natural range 0 to 31;
 	
-	signal lc_pingpong_50M         			: std_logic;   
-    signal lc_pingpong_100M_z      			: std_logic;   
-    signal lc_pingpong_100M_zz     			: std_logic;
+	signal lc_pingpong_50M         			: natural range 0 to 1;   
+    signal lc_pingpong_100M_z      			: natural range 0 to 1;      
+    signal lc_pingpong_100M_zz     			: natural range 0 to 1;   
 	
 	--Counter variables
 	signal lc2_counter						: natural range 0 to 31; 
@@ -286,7 +286,7 @@ begin
 				if reset50M_zz = '1'then
                     P1_State                <= WaitData;
                     lc_pingpong             <= 0;
-                    lc_pingpong_50M    		<= '0';
+                    lc_pingpong_50M    		<= 0;
                     fs_mode_detect_o        <= (others => '0');
                     fs_mode_detect_valid_o  <= '0';
                     found_assm_sync         <= '0';
@@ -391,10 +391,10 @@ begin
 														ram_to_fifo_start_50M <= '1';
 														
 														if (lc_pingpong = 0) then
-															lc_pingpong_50M <= '0';
+															lc_pingpong_50M <= 0;
 															lc_pingpong <= 1;
 														else
-															lc_pingpong_50M <= '1';
+															lc_pingpong_50M <= 1;
 															lc_pingpong <= 0;
 														end if;
 														
@@ -509,12 +509,12 @@ begin
 								P2_SubState <= 1;
 								
 							when 1 =>								
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)), encoded_block_no, 10);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz, encoded_block_no, 10);
 								P2_SubState <= 2;
 							
 							--and read out manually word 9 and we also need to wait dummy cycle for readback of word 10			
 							when 2 =>
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)), encoded_block_no, 9);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz, encoded_block_no, 9);
 								P2_SubState <= 3;
 							
 							--readback of word 10
@@ -526,7 +526,7 @@ begin
 							--readback of word 9 and save back sub-slice 11
 							when 4 =>
 								reshift_tmp_b <= lc_ram_do_b; --word 9 in b							
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),  encoded_block_no, 11);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz,  encoded_block_no, 11);
 								lc_ram_di_b <= "000" & reshift_tmp_a (27 downto 0) & lc_ram_do_b(31);
 								lc_ram_di_b_we <= '1';
 								
@@ -535,7 +535,7 @@ begin
 							--save back sub-slice 10
 							when 5 =>
 							
-								lc_ram_b_addr  <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),encoded_block_no, 10);
+								lc_ram_b_addr  <= lc_ram_addr(lc_pingpong_100M_zz,encoded_block_no, 10);
 								lc_ram_di_b <= "000" & reshift_tmp_b (30 downto 2);
 								lc_ram_di_b_we <= '1';
 								
@@ -548,13 +548,13 @@ begin
 							
 							--readback subframecounter and subframecounter-1
 							when 7 =>
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),encoded_block_no, lc2_subframe_counter);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz,encoded_block_no, lc2_subframe_counter);
 								
 								P2_SubState <= 8;
 								
 							when 8 =>
 								if lc2_subframe_counter > 0 then
-									lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),encoded_block_no, lc2_subframe_counter) - 1;
+									lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz,encoded_block_no, lc2_subframe_counter) - 1;
 								end if;
 								
 								P2_SubState <= 9;
@@ -586,7 +586,7 @@ begin
 									lc_ram_di_b <= "000" & reshift_tmp_a (28 downto 0);
 								end if;
 								
-								lc_ram_b_addr  <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),encoded_block_no, lc2_subframe_counter);
+								lc_ram_b_addr  <= lc_ram_addr(lc_pingpong_100M_zz,encoded_block_no, lc2_subframe_counter);
 								lc_ram_di_b_we <= '1';
 								
 								--if there is still to process...
@@ -627,12 +627,12 @@ begin
 								P2_SubState <= 1;
 								
 							when 1 =>
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)),encoded_block_no, lc2_subframe_counter);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz,encoded_block_no, lc2_subframe_counter);
 								
 								P2_SubState <= 2;
 								
 							when 2 =>
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)), encoded_block_no, lc2_subframe_counter) + 1;
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz, encoded_block_no, lc2_subframe_counter) + 1;
 								
 								P2_SubState <= 3;
 								
@@ -708,12 +708,12 @@ begin
 								P2_SubState <= 1;
 								
 							when 1 =>	
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)), encoded_block_no, lc2_subframe_counter);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz, encoded_block_no, lc2_subframe_counter);
 								P2_SubState <= 2;	
 								
 							--init read of lc25
 							when 2 =>
-								lc_ram_b_addr <= lc_ram_addr(to_integer(unsigned'(0 => lc_pingpong_100M_zz)), encoded_block_no, lc2_subframe_counter);
+								lc_ram_b_addr <= lc_ram_addr(lc_pingpong_100M_zz, encoded_block_no, lc2_subframe_counter);
 								P2_SubState <= 3;
 							
 							--save readback of lc24
