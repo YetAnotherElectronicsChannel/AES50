@@ -202,7 +202,7 @@ Then the TDM-serializer starts recording samples into the FIFO to the AES50-TX-m
 The AES50-TX-Module waits until 6 samples (basically 288 samples as it is 6 samples * 48 channels) are in the FIFO.  
 The first ethernet-frame transmitted after this startup-sequence will contain the ASSM-marker in the frame-header and will be aligned with the 2048x modulated clock-pulse.  
 This also explains the mysterious "first_transmit_counter" values on the top-level files.   
-![Startup Sequencing](Doc/aes50_assm_startup.png.png?raw=true "Startup Sequencing")  
+![Startup Sequencing](Doc/aes50_assm_startup.png?raw=true "Startup Sequencing")  
 In 44k1 the same mechanism applies, but with a duration of 2048-11 = 2037 WCLK cycles wait time.
 
 ### Testbenches
