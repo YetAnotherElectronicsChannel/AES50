@@ -189,6 +189,26 @@ Especially if core is configured for e.g. I2S only operation, the utilization is
 Reference FPGA: Efinix Trion T20Q100F3 (Speedgrade: 4) using Efinity 2025.1.110.5.9 toolchain.  
 ![FPGA Resource Utilization](Doc/t20_ip_utilization.png?raw=true "Resource Utilization")  
 
+## Some technical implementation hints
+
+### Ram Reorder processes in AES50-TX/RX Modules
+![RAM Reorder Process](Doc/ram_reorder.png?raw=true "RAM reorder process")
+
+### Startup Sequencing  
+The Startup Sequencing must be timed very precisely.  
+The Ethernet frame containing the "2048x ASSM-marker" in the header must be tightly aligned with the modulated-clock-pulses on the LVDS signaling.  
+This happens in 48k as follows: The IP waits until the clock-pulse-modulation happens. (It is assumed it will happen again after 2048x WCLK). When the clock-pulse-modulation happened, a timer starts with the duration of approx. 2042x (2048-6) WCLK timeframes.  
+Then the TDM-serializer starts recording samples into the FIFO to the AES50-TX-module.  
+The AES50-TX-Module waits until 6 samples (basically 288 samples as it is 6 samples * 48 channels) are in the FIFO.  
+The first ethernet-frame transmitted after this startup-sequence will contain the ASSM-marker in the frame-header and will be aligned with the 2048x modulated clock-pulse.  
+This also explains the mysterious "first_transmit_counter" values on the top-level files.   
+![Startup Sequencing](Doc/aes50_assm_startup.png.png?raw=true "Startup Sequencing")  
+In 44k1 the same mechanism applies, but with a duration of 2048-11 = 2037 WCLK cycles wait time.
+
+### Testbenches
+I also attached now the testbenches I used.  
+Please see the testbenches as WIP as I modified them as needed and those testbenches might not work out of the box. So this is more of a "playground" rather than a professional verification testbench.
+
 ## License
 
 Copyright (c) 2025 Markus Noll (YetAnotherElectronicsChannel)
