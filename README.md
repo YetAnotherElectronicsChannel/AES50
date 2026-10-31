@@ -7,6 +7,9 @@ However I decided to make this project public with the purpose to be used in the
 Therefore, this IP was developed fully independent/separated from the OpenX32 project and comes instead with a reference implementation on a custom PCB (also included in this repo) designed around an [Efinix Trion T20 FPGA](https://www.efinixinc.com/shop/t20.php).  
 Integration into the OpenX32 project is still a to-do work.. But I'm sure those guys will manage :)
 
+## IP version 2
+At the end of October 2026, I published a resource-optimized, functionally compatible version of this IP core, targeting the constrained FPGAs of the OpenX32 project: [AES50v2](https://github.com/YetAnotherElectronicsChannel/AES50v2)
+
 ## AES50 Specification
 Before asking any detailed questions about functionality or implementation of this IP, please make sure you read and understood the public available AES50 specification which can be downloaded [here](https://aes2.org/publications/standards-store/?id=45).    
 Otherwise I might not answer to your request.
